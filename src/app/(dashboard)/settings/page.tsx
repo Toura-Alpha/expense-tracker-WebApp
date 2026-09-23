@@ -110,7 +110,7 @@ export default function SettingsPage() {
       return budgetOverrides[catId];
     }
     const found = budgets.find((b) => b.category_id === catId);
-    return found ? found.amount_limit.toString() : '';
+    return found ? found.monthly_limit.toString() : '';
   };
 
   const handleManualSync = async () => {

@@ -61,12 +61,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [transactions, setTransactions] = useState<TransactionDocType[]>([]);
   const [categories, setCategories] = useState<CategoryDocType[]>([]);
   const [budgets, setBudgets] = useState<BudgetDocType[]>([]);
-  const [currency, setCurrencyState] = useState<string>(() => {
+  const [currency, setCurrencyState] = useState<string>('USD');
+
+  useEffect(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('expense_tracker_currency') || 'USD';
+      const saved = localStorage.getItem('expense_tracker_currency');
+      if (saved) setCurrencyState(saved);
     }
-    return 'USD';
-  });
+  }, []);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
@@ -125,10 +127,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 id: `bgt_default_food`,
                 user_id: 'default_user',
                 category_id: catId,
-                amount_limit: 450,
-                period: 'monthly',
-                start_date: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString(),
-                end_date: null,
+                monthly_limit: 450,
                 updated_at: now,
                 deleted_at: null,
                 _deleted: false,
@@ -138,10 +137,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 id: `bgt_default_groc`,
                 user_id: 'default_user',
                 category_id: catId,
-                amount_limit: 600,
-                period: 'monthly',
-                start_date: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString(),
-                end_date: null,
+                monthly_limit: 600,
                 updated_at: now,
                 deleted_at: null,
                 _deleted: false,
@@ -151,10 +147,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 id: `bgt_default_trans`,
                 user_id: 'default_user',
                 category_id: catId,
-                amount_limit: 200,
-                period: 'monthly',
-                start_date: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString(),
-                end_date: null,
+                monthly_limit: 200,
                 updated_at: now,
                 deleted_at: null,
                 _deleted: false,
@@ -290,7 +283,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       const now = new Date().toISOString();
       if (existing) {
         await existing.patch({
-          amount_limit: monthlyLimit,
+          monthly_limit: monthlyLimit,
           _deleted: false,
           deleted_at: null,
           updated_at: now,
@@ -300,10 +293,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
           id: `bgt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
           user_id: 'current_user',
           category_id: categoryId,
-          amount_limit: monthlyLimit,
-          period: 'monthly',
-          start_date: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString(),
-          end_date: null,
+          monthly_limit: monthlyLimit,
           updated_at: now,
           deleted_at: null,
           _deleted: false,

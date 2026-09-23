@@ -11,7 +11,7 @@ export type SyncStatus = 'synced' | 'syncing' | 'offline' | 'error';
 
 export type CreateTransactionInput = Omit<
   TransactionDocType,
-  'id' | 'updated_at' | '_deleted' | 'deleted_at'
+  'id' | 'user_id' | 'updated_at' | '_deleted' | 'deleted_at'
 > & {
   id?: string;
   user_id?: string;

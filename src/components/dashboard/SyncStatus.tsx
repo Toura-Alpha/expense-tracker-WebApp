@@ -6,11 +6,13 @@ import { syncEngine } from '@/lib/db/sync';
 import { syncEventBus, type SyncStatusState } from '@/lib/db/events';
 
 export function SyncStatus() {
+  const [mounted, setMounted] = useState(false);
   const { isOnline } = useNetworkStatus();
   const [internalStatus, setInternalStatus] = useState<SyncStatusState>(() => syncEngine.getStatus().status);
   const [isRetrying, setIsRetrying] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     // Subscribe to external sync engine events
     const unsubscribe = syncEventBus.onStatus((event) => {
       setInternalStatus(event.status);
@@ -19,8 +21,8 @@ export function SyncStatus() {
     return unsubscribe;
   }, []);
 
-  // Compute effective status: if device is offline, status is always 'offline'
-  const status: SyncStatusState = !isOnline ? 'offline' : internalStatus;
+  // Compute effective status: before mounting, match SSR default 'synced' to prevent hydration mismatches
+  const status: SyncStatusState = !mounted ? 'synced' : (!isOnline ? 'offline' : internalStatus);
 
   const handleManualSync = async () => {
     if (!isOnline || isRetrying) return;

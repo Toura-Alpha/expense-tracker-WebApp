@@ -77,7 +77,7 @@ export default function DashboardPage() {
       .filter((cat) => !cat.is_income)
       .map((cat) => {
         const budgetDoc = budgets.find((b) => b.category_id === cat.id);
-        const limit = budgetDoc ? budgetDoc.amount_limit : 0;
+        const limit = budgetDoc ? budgetDoc.monthly_limit : 0;
         const spent = categorySpendMap[cat.id] || 0;
         const percent = limit > 0 ? Math.min(Math.round((spent / limit) * 100), 100) : 0;
         const isOver = limit > 0 && spent > limit;
