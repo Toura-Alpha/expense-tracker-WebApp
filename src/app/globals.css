@@ -1,0 +1,43 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+:root {
+  --ink: #1B1F23;       /* primary text */
+  --paper: #FAFAF8;     /* app background */
+  --surface: #FFFFFF;   /* card/panel background */
+  --line: #E4E1DA;      /* hairline borders */
+  --forest: #2F5D50;    /* primary accent — income, primary actions */
+  --rust: #B4472C;      /* expense accent, muted clay-red */
+}
+
+.dark {
+  --ink: #F2F0EC;
+  --paper: #14171A;
+  --surface: #1C1F22;
+  --line: #2A2E32;
+  --forest: #4A8577;    /* slightly desaturated for dark contrast */
+  --rust: #C86A4F;
+}
+
+@theme {
+  --color-ink: var(--ink);
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-line: var(--line);
+  --color-forest: var(--forest);
+  --color-rust: var(--rust);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+

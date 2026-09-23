@@ -1,0 +1,6 @@
+{
+  "name": "Expense Tracker",
+  "description": "An offline-first personal expense tracker with AI-powered natural language transaction parsing.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
