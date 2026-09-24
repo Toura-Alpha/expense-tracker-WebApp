@@ -42,6 +42,8 @@ export default function DashboardPage() {
     monthIncome,
     monthSpend,
     monthNet,
+    incomeChangePct,
+    spendChangePct,
     categoryBudgets,
     recentTransactions,
   } = useMemo(() => {
@@ -54,6 +56,14 @@ export default function DashboardPage() {
     let thisMonthSpend = 0;
 
     const categorySpendMap: Record<string, number> = {};
+
+    // Calculate last month figures for MoM comparisons
+    const lastMonthDate = new Date(currentYear, currentMonth - 1, 1);
+    const lastMonthYear = lastMonthDate.getFullYear();
+    const lastMonthMonth = lastMonthDate.getMonth();
+
+    let lastMonthIncome = 0;
+    let lastMonthSpend = 0;
 
     for (const tx of transactions) {
       totalBalance += tx.amount;
@@ -69,8 +79,23 @@ export default function DashboardPage() {
             categorySpendMap[tx.category_id] = (categorySpendMap[tx.category_id] || 0) + absAmount;
           }
         }
+      } else if (txDate.getFullYear() === lastMonthYear && txDate.getMonth() === lastMonthMonth) {
+        if (tx.amount > 0) {
+          lastMonthIncome += tx.amount;
+        } else {
+          lastMonthSpend += Math.abs(tx.amount);
+        }
       }
     }
+
+    const incomeChangePct =
+      lastMonthIncome > 0
+        ? Math.round(((thisMonthIncome - lastMonthIncome) / lastMonthIncome) * 100)
+        : null;
+    const spendChangePct =
+      lastMonthSpend > 0
+        ? Math.round(((thisMonthSpend - lastMonthSpend) / lastMonthSpend) * 100)
+        : null;
 
     // Build category budget progress bars
     const budgetsData = categories
@@ -97,6 +122,8 @@ export default function DashboardPage() {
       monthIncome: thisMonthIncome,
       monthSpend: thisMonthSpend,
       monthNet: thisMonthIncome - thisMonthSpend,
+      incomeChangePct,
+      spendChangePct,
       categoryBudgets: budgetsData,
       recentTransactions: transactions.slice(0, 5),
     };
@@ -151,7 +178,11 @@ export default function DashboardPage() {
   // 1. Loading State
   if (isLoading) {
     return (
-      <div className="p-6 lg:p-8 max-w-7xl mx-auto space-y-8 animate-pulse">
+      <div
+        aria-busy="true"
+        aria-label="Loading dashboard data..."
+        className="p-6 lg:p-8 max-w-7xl mx-auto space-y-8 animate-pulse"
+      >
         <div className="h-14 bg-surface border border-line rounded-xl w-full" />
         <div className="space-y-4">
           <div className="h-6 bg-surface border border-line rounded w-48" />
@@ -237,7 +268,7 @@ export default function DashboardPage() {
         <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-4">
           <div>
             <p className="text-xs font-bold uppercase tracking-wider text-ink/50 mb-1">
-              Current Balance
+              Net Balance (All-Time)
             </p>
             {/* 40px type step with tabular numerals, text-forest if positive, text-rust if negative */}
             <h1
@@ -273,6 +304,16 @@ export default function DashboardPage() {
             <p className="text-xl font-bold text-forest tabular mt-1.5">
               {formatCurrency(monthIncome, currency)}
             </p>
+            {incomeChangePct !== null && (
+              <p
+                className={`text-[10px] font-semibold mt-1 ${
+                  incomeChangePct >= 0 ? 'text-forest' : 'text-rust'
+                }`}
+              >
+                {incomeChangePct >= 0 ? `↑ ${incomeChangePct}%` : `↓ ${Math.abs(incomeChangePct)}%`}{' '}
+                vs last month
+              </p>
+            )}
           </div>
 
           <div className="p-4 bg-paper rounded-xl border border-line">
@@ -283,6 +324,16 @@ export default function DashboardPage() {
             <p className="text-xl font-bold text-rust tabular mt-1.5">
               {formatCurrency(monthSpend, currency)}
             </p>
+            {spendChangePct !== null && (
+              <p
+                className={`text-[10px] font-semibold mt-1 ${
+                  spendChangePct <= 0 ? 'text-forest' : 'text-rust'
+                }`}
+              >
+                {spendChangePct > 0 ? `↑ ${spendChangePct}%` : `↓ ${Math.abs(spendChangePct)}%`}{' '}
+                vs last month
+              </p>
+            )}
           </div>
 
           <div className="p-4 bg-paper rounded-xl border border-line">
@@ -327,15 +378,16 @@ export default function DashboardPage() {
           </div>
 
           {categoryBudgets.length === 0 ? (
-            <div className="p-6 bg-paper border border-dashed border-line rounded-xl text-center space-y-2">
-              <p className="text-xs text-ink/60 font-medium">
-                No active budget limits configured yet.
+            <div className="p-6 bg-paper border border-dashed border-line rounded-xl text-center space-y-3">
+              <p className="text-xs text-ink/70 font-medium max-w-sm mx-auto">
+                Set a monthly spending limit for any category and we&apos;ll track your progress here automatically.
               </p>
               <Link
                 href="/settings"
-                className="inline-flex items-center gap-1 text-xs font-bold text-forest hover:underline"
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-forest text-white rounded-lg text-xs font-bold hover:bg-forest/90 transition-colors shadow-2xs"
               >
-                Configure monthly category limits in Settings &rarr;
+                <span>Set My First Budget</span>
+                <ArrowRight className="w-3.5 h-3.5" />
               </Link>
             </div>
           ) : (
@@ -385,6 +437,20 @@ export default function DashboardPage() {
                         style={{ width: `${percent}%` }}
                       />
                     </div>
+
+                    {limit > 0 && (
+                      <div className="flex justify-end text-[10px] text-ink/40 font-medium">
+                        {isOver ? (
+                          <span className="text-rust font-semibold">
+                            Over limit by {formatCurrency(spent - limit, currency)}
+                          </span>
+                        ) : (
+                          <span>
+                            {formatCurrency(limit - spent, currency)} remaining
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -485,14 +551,14 @@ export default function DashboardPage() {
           </div>
 
           {recentTransactions.length > 0 && (
-            <div className="pt-3 border-t border-line">
-              <button
-                onClick={() => openAddModal()}
-                className="w-full py-2 bg-paper border border-line rounded-lg text-xs font-semibold text-ink hover:text-forest hover:border-forest transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+            <div className="pt-3 border-t border-line text-center">
+              <Link
+                href="/transactions"
+                className="w-full py-2 bg-paper border border-line rounded-lg text-xs font-bold text-ink/70 hover:text-forest hover:border-forest transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                <PlusCircle className="w-4 h-4" />
-                <span>Add Another Entry</span>
-              </button>
+                <span>View Full Ledger</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
             </div>
           )}
         </section>

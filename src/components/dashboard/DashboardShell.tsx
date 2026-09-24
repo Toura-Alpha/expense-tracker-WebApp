@@ -1,7 +1,7 @@
 'use client';
 
-import React from 'react';
-import { DataProvider } from '@/lib/db/useRxData';
+import React, { useEffect } from 'react';
+import { DataProvider, useData } from '@/lib/db/useRxData';
 import { Sidebar } from './sidebar';
 import { Header } from './header';
 import { BottomNav } from './BottomNav';
@@ -12,9 +12,41 @@ interface DashboardShellProps {
   children: React.ReactNode;
 }
 
+function GlobalKeyboardShortcuts() {
+  const { openAddModal } = useData();
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        openAddModal();
+      } else if (e.key.toLowerCase() === 'n' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        openAddModal();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [openAddModal]);
+
+  return null;
+}
+
 export function DashboardShell({ userEmail, children }: DashboardShellProps) {
   return (
     <DataProvider>
+      <GlobalKeyboardShortcuts />
       <div className="flex h-screen w-full bg-paper text-ink font-sans overflow-hidden">
         {/* Persistent left sidebar on desktop (>=1024px) */}
         <Sidebar userEmail={userEmail} />

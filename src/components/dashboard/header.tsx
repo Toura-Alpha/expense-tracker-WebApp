@@ -6,11 +6,22 @@ import { SyncStatus } from './SyncStatus';
 import { ConflictToast } from './ConflictToast';
 import { useData } from '@/lib/db/useRxData';
 
+import { usePathname } from 'next/navigation';
+
+const ROUTE_LABELS: Record<string, string> = {
+  '/dashboard': 'Dashboard',
+  '/transactions': 'Ledger',
+  '/analytics': 'Analytics',
+  '/settings': 'Settings',
+};
+
 interface HeaderProps {
   onNewEntry?: () => void;
 }
 
 export function Header({ onNewEntry }: HeaderProps) {
+  const pathname = usePathname();
+  const pageTitle = ROUTE_LABELS[pathname] || '';
   const { openAddModal, categories } = useData();
   const [nlpInput, setNlpInput] = useState('');
   const [isParsing, setIsParsing] = useState(false);
@@ -71,12 +82,17 @@ export function Header({ onNewEntry }: HeaderProps) {
 
   return (
     <header className="h-16 lg:h-20 border-b border-line bg-surface flex items-center px-4 lg:px-8 justify-between shrink-0 sticky top-0 z-20">
-      {/* Brand title on mobile */}
+      {/* Brand title & Page Subtitle on mobile */}
       <div className="flex items-center gap-2 lg:hidden mr-2">
-        <div className="w-8 h-8 bg-forest rounded-lg flex items-center justify-center text-white font-black text-sm shadow-xs">
+        <div className="w-8 h-8 bg-forest rounded-lg flex items-center justify-center text-white font-black text-sm shadow-xs shrink-0">
           E
         </div>
-        <span className="font-bold text-sm text-ink tracking-tight">expense-tracker</span>
+        <div className="flex flex-col">
+          <span className="font-bold text-xs text-ink tracking-tight leading-tight">expense-tracker</span>
+          {pageTitle && (
+            <span className="text-[10px] font-bold text-forest leading-tight uppercase tracking-wider">{pageTitle}</span>
+          )}
+        </div>
       </div>
 
       {/* Desktop Quick NLP search bar */}

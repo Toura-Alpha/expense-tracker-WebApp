@@ -20,6 +20,7 @@ import {
   Clock,
   Sparkles,
   Loader2,
+  Search,
 } from 'lucide-react';
 import { useData } from '@/lib/db/useRxData';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
@@ -35,6 +36,17 @@ const AVAILABLE_CURRENCIES = [
   { code: 'CAD', name: 'Canadian Dollar (CA$)' },
   { code: 'AUD', name: 'Australian Dollar (A$)' },
   { code: 'CHF', name: 'Swiss Franc (CHF)' },
+  { code: 'INR', name: 'Indian Rupee (₹)' },
+  { code: 'BRL', name: 'Brazilian Real (R$)' },
+  { code: 'SGD', name: 'Singapore Dollar (S$)' },
+  { code: 'HKD', name: 'Hong Kong Dollar (HK$)' },
+  { code: 'NZD', name: 'New Zealand Dollar (NZ$)' },
+  { code: 'SEK', name: 'Swedish Krona (kr)' },
+  { code: 'NOK', name: 'Norwegian Krone (kr)' },
+  { code: 'MXN', name: 'Mexican Peso (Mex$)' },
+  { code: 'ZAR', name: 'South African Rand (R)' },
+  { code: 'AED', name: 'UAE Dirham (AED)' },
+  { code: 'SAR', name: 'Saudi Riyal (SAR)' },
 ];
 
 const PALETTE_COLORS = [
@@ -51,18 +63,21 @@ const PALETTE_COLORS = [
 ];
 
 const AVAILABLE_ICONS = [
-  'Utensils',
-  'ShoppingBag',
-  'Car',
-  'Home',
-  'Zap',
-  'Film',
-  'HeartPulse',
-  'Briefcase',
-  'TrendingUp',
-  'Coins',
-  'Tag',
-  'Coffee',
+  { name: 'Utensils', label: 'Food & Dining' },
+  { name: 'ShoppingBag', label: 'Shopping' },
+  { name: 'Car', label: 'Transport' },
+  { name: 'Home', label: 'Housing' },
+  { name: 'Zap', label: 'Utilities' },
+  { name: 'Film', label: 'Entertainment' },
+  { name: 'HeartPulse', label: 'Healthcare' },
+  { name: 'Briefcase', label: 'Work/Income' },
+  { name: 'TrendingUp', label: 'Investments' },
+  { name: 'Coins', label: 'Finance' },
+  { name: 'Tag', label: 'General' },
+  { name: 'Coffee', label: 'Drinks & Cafes' },
+  { name: 'Smartphone', label: 'Electronics' },
+  { name: 'Plane', label: 'Travel' },
+  { name: 'Gift', label: 'Gifts & Charity' },
 ];
 
 export default function SettingsPage() {
@@ -82,6 +97,16 @@ export default function SettingsPage() {
 
   const isOnline = useNetworkStatus();
 
+  // Currency search state
+  const [currencySearchQuery, setCurrencySearchQuery] = useState('');
+
+  // Filter currencies
+  const filteredCurrencies = AVAILABLE_CURRENCIES.filter((curr) => {
+    if (!currencySearchQuery.trim()) return true;
+    const q = currencySearchQuery.toLowerCase();
+    return curr.code.toLowerCase().includes(q) || curr.name.toLowerCase().includes(q);
+  });
+
   // Sync state
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(() => {
@@ -98,7 +123,7 @@ export default function SettingsPage() {
   const [catName, setCatName] = useState('');
   const [catIsIncome, setCatIsIncome] = useState(false);
   const [catColor, setCatColor] = useState(PALETTE_COLORS[0]);
-  const [catIcon, setCatIcon] = useState(AVAILABLE_ICONS[0]);
+  const [catIcon, setCatIcon] = useState<string>(AVAILABLE_ICONS[0].name);
   const [catError, setCatError] = useState<string | null>(null);
 
   // Budget editing state
@@ -168,7 +193,7 @@ export default function SettingsPage() {
     setEditingCatId(cat.id);
     setCatName(cat.name);
     setCatColor(cat.color || PALETTE_COLORS[0]);
-    setCatIcon(cat.icon || AVAILABLE_ICONS[0]);
+    setCatIcon(cat.icon || AVAILABLE_ICONS[0].name);
     setCatIsIncome(cat.is_income);
     setIsAddingCategory(false);
   };
@@ -178,6 +203,17 @@ export default function SettingsPage() {
     setIsAddingCategory(false);
     setCatName('');
     setCatError(null);
+  };
+
+  const handleArchiveCategory = (cat: CategoryDocType) => {
+    const linkedCount = transactions.filter((t) => t.category_id === cat.id).length;
+    if (linkedCount > 0) {
+      const confirmed = window.confirm(
+        `Category "${cat.name}" is linked to ${linkedCount} transaction(s). Archiving it will leave those transactions uncategorized. Are you sure?`
+      );
+      if (!confirmed) return;
+    }
+    archiveCategory(cat.id);
   };
 
   const handleSaveBudget = async (categoryId: string) => {
@@ -244,22 +280,33 @@ export default function SettingsPage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-          {AVAILABLE_CURRENCIES.map((curr) => {
+        <div className="relative max-w-xs">
+          <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-ink/40 pointer-events-none" />
+          <input
+            type="text"
+            value={currencySearchQuery}
+            onChange={(e) => setCurrencySearchQuery(e.target.value)}
+            placeholder="Search currency..."
+            className="w-full pl-8 pr-3 py-1.5 bg-paper border border-line rounded-lg text-xs text-ink placeholder:text-ink/40 focus:outline-none focus:border-forest"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 max-h-48 overflow-y-auto pr-1">
+          {filteredCurrencies.map((curr) => {
             const isSelected = currency === curr.code;
             return (
               <button
                 key={curr.code}
                 type="button"
                 onClick={() => setCurrency(curr.code)}
-                className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition-all text-left flex items-center justify-between cursor-pointer ${
+                className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all text-left flex items-center justify-between cursor-pointer ${
                   isSelected
                     ? 'bg-forest/10 border-forest text-forest shadow-2xs'
                     : 'bg-paper border-line text-ink/70 hover:border-ink/30 hover:text-ink'
                 }`}
               >
-                <span>{curr.name}</span>
-                {isSelected && <Check className="w-3.5 h-3.5 shrink-0" />}
+                <span className="truncate">{curr.name}</span>
+                {isSelected && <Check className="w-3.5 h-3.5 shrink-0 ml-1 text-forest" />}
               </button>
             );
           })}
@@ -282,7 +329,7 @@ export default function SettingsPage() {
                 setIsAddingCategory(true);
                 setCatName('');
                 setCatColor(PALETTE_COLORS[0]);
-                setCatIcon(AVAILABLE_ICONS[0]);
+                setCatIcon(AVAILABLE_ICONS[0].name);
                 setCatIsIncome(false);
               }}
               className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-forest text-white rounded-lg text-xs font-bold hover:bg-forest/90 transition-colors shadow-2xs cursor-pointer"
@@ -381,17 +428,19 @@ export default function SettingsPage() {
                 Icon
               </label>
               <div className="flex flex-wrap gap-2">
-                {AVAILABLE_ICONS.map((iconName) => {
-                  const IconComp = getCategoryIcon(iconName);
-                  const isSelected = catIcon === iconName;
+                {AVAILABLE_ICONS.map((iconItem) => {
+                  const IconComp = getCategoryIcon(iconItem.name);
+                  const isSelected = catIcon === iconItem.name;
                   return (
                     <button
-                      key={iconName}
+                      key={iconItem.name}
                       type="button"
-                      onClick={() => setCatIcon(iconName)}
+                      title={iconItem.label}
+                      aria-label={iconItem.label}
+                      onClick={() => setCatIcon(iconItem.name)}
                       className={`p-2 rounded-lg border text-ink/70 cursor-pointer transition-colors ${
                         isSelected
-                          ? 'bg-forest/15 border-forest text-forest'
+                          ? 'bg-forest/15 border-forest text-forest ring-1 ring-forest'
                           : 'bg-surface border-line hover:border-ink/30'
                       }`}
                     >
@@ -462,7 +511,7 @@ export default function SettingsPage() {
                     <Edit2 className="w-3.5 h-3.5" />
                   </button>
                   <button
-                    onClick={() => archiveCategory(cat.id)}
+                    onClick={() => handleArchiveCategory(cat)}
                     aria-label={`Archive category ${cat.name}`}
                     className="p-1.5 text-ink/50 hover:text-rust hover:bg-surface rounded-lg transition-colors cursor-pointer"
                   >
@@ -517,20 +566,23 @@ export default function SettingsPage() {
                     onChange={(e) =>
                       setBudgetOverrides((prev) => ({ ...prev, [cat.id]: e.target.value }))
                     }
+                    onBlur={() => handleSaveBudget(cat.id)}
                     placeholder="No limit"
                     className="w-24 px-2.5 py-1 bg-surface border border-line rounded-lg text-xs font-bold tabular text-ink focus:outline-none focus:border-forest text-right"
                   />
-                  <button
-                    onClick={() => handleSaveBudget(cat.id)}
-                    disabled={isSavingThis}
-                    className="px-2.5 py-1 bg-surface border border-line rounded-lg text-xs font-bold text-forest hover:bg-forest/10 hover:border-forest transition-colors cursor-pointer disabled:opacity-50"
-                  >
+                  <div className="w-14 flex items-center justify-center">
                     {isSavingThis ? (
-                      <Loader2 className="w-3 h-3 animate-spin" />
+                      <Loader2 className="w-3.5 h-3.5 text-forest animate-spin" />
                     ) : (
-                      'Save'
+                      <button
+                        type="button"
+                        onClick={() => handleSaveBudget(cat.id)}
+                        className="px-2 py-0.5 text-[10px] font-bold text-forest/70 hover:text-forest transition-colors cursor-pointer"
+                      >
+                        Auto-saved
+                      </button>
                     )}
-                  </button>
+                  </div>
                 </div>
               </div>
             );
@@ -543,10 +595,10 @@ export default function SettingsPage() {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-base font-bold text-ink tracking-tight">
-              Replication Engine & Sync Log
+              Cloud Sync
             </h2>
             <p className="text-xs text-ink/50">
-              RxDB Dexie storage state, cloud replication status, and connection logs
+              Your data is backed up to the cloud whenever you&apos;re online
             </p>
           </div>
 

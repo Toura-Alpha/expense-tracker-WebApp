@@ -70,7 +70,11 @@ function TransactionModalDialog() {
   const [dateStr, setDateStr] = useState(() => {
     if (editingTransaction?.date) return editingTransaction.date.split('T')[0];
     if (prefillData?.date) return prefillData.date.split('T')[0];
-    return new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   });
 
   const [note, setNote] = useState(() => {
@@ -327,7 +331,7 @@ function TransactionModalDialog() {
                   min="0.01"
                   required
                   value={amountStr}
-                  onChange={(e) => setAmountStr(e.target.value)}
+                  onChange={(e) => setAmountStr(e.target.value.replace(/-/g, ''))}
                   placeholder="0.00"
                   className={`w-full pl-9 pr-4 py-2 bg-surface border border-line rounded-lg text-lg font-bold tabular focus:outline-none focus:border-forest focus-visible:ring-2 focus-visible:ring-forest transition-colors ${
                     txType === 'expense' ? 'text-rust' : 'text-forest'

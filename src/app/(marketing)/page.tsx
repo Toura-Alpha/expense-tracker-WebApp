@@ -43,7 +43,7 @@ export default function MarketingPage() {
             Type or speak naturally, let the parser sort the amount, merchant, and category, and keep your entire ledger on your device even without cell service.
           </p>
 
-          <div className="pt-2">
+          <div className="pt-2 flex flex-col items-center gap-2">
             <Link
               href="/register"
               className="inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-forest text-white rounded-xl text-base font-bold shadow-xs hover:bg-forest/90 transition-all focus-visible:ring-2 focus-visible:ring-forest focus-visible:outline-none"
@@ -51,6 +51,15 @@ export default function MarketingPage() {
               <span>Get started free</span>
               <ArrowRight className="w-4 h-4" />
             </Link>
+            <Link
+              href="/login"
+              className="text-xs text-ink/60 hover:text-forest transition-colors font-medium"
+            >
+              Already have an account? Sign in &rarr;
+            </Link>
+            <p className="text-[11px] text-ink/40 font-medium pt-1">
+              Free forever &middot; Works 100% offline &middot; Optional cloud backup
+            </p>
           </div>
         </div>
 

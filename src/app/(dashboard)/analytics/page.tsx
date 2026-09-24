@@ -12,7 +12,7 @@ import {
   Calendar,
 } from 'lucide-react';
 import { useData } from '@/lib/db/useRxData';
-import { formatCurrency, getCategoryIcon } from '@/lib/formatters';
+import { formatCurrency, getCategoryIcon, getCurrencySymbol } from '@/lib/formatters';
 
 export default function AnalyticsPage() {
   const {
@@ -26,18 +26,37 @@ export default function AnalyticsPage() {
   } = useData();
 
   const [activeTooltipIndex, setActiveTooltipIndex] = useState<number | null>(null);
+  const [timePeriod, setTimePeriod] = useState<'all' | 'this_month' | 'last_90_days' | 'this_year'>('all');
+  const [breakdownType, setBreakdownType] = useState<'expense' | 'income'>('expense');
 
-  // Filter only expenses
-  const expenseTransactions = useMemo(() => {
-    return transactions.filter((t) => t.amount < 0);
-  }, [transactions]);
+  // Filter transactions matching active breakdownType and timePeriod
+  const filteredBreakdownTransactions = useMemo(() => {
+    return transactions.filter((t) => {
+      if (breakdownType === 'expense' && t.amount >= 0) return false;
+      if (breakdownType === 'income' && t.amount <= 0) return false;
+      if (timePeriod === 'all') return true;
+      const txDate = new Date(t.date);
+      const now = new Date();
+      if (timePeriod === 'this_month') {
+        return txDate.getMonth() === now.getMonth() && txDate.getFullYear() === now.getFullYear();
+      }
+      if (timePeriod === 'last_90_days') {
+        const ninetyDaysAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 90);
+        return txDate >= ninetyDaysAgo;
+      }
+      if (timePeriod === 'this_year') {
+        return txDate.getFullYear() === now.getFullYear();
+      }
+      return true;
+    });
+  }, [transactions, breakdownType, timePeriod]);
 
-  // Compute category breakdown ranked by spend
-  const { categoryRankedList, totalExpenses } = useMemo(() => {
+  // Compute category breakdown ranked by amount
+  const { categoryRankedList, totalBreakdownAmount } = useMemo(() => {
     const spendByCat: Record<string, number> = {};
     let total = 0;
 
-    for (const tx of expenseTransactions) {
+    for (const tx of filteredBreakdownTransactions) {
       const absAmount = Math.abs(tx.amount);
       total += absAmount;
       const catId = tx.category_id || 'uncategorized';
@@ -67,9 +86,9 @@ export default function AnalyticsPage() {
 
     return {
       categoryRankedList: list,
-      totalExpenses: total,
+      totalBreakdownAmount: total,
     };
-  }, [expenseTransactions, categories]);
+  }, [filteredBreakdownTransactions, categories]);
 
   // Compute 6-month historical trend
   const trendData = useMemo(() => {
@@ -167,7 +186,7 @@ export default function AnalyticsPage() {
   }
 
   // Explicit empty state for new users
-  if (transactions.length === 0 || expenseTransactions.length === 0) {
+  if (transactions.length === 0 || filteredBreakdownTransactions.length === 0) {
     return (
       <div className="p-4 lg:p-8 max-w-5xl mx-auto space-y-6">
         <div>
@@ -191,10 +210,10 @@ export default function AnalyticsPage() {
           </div>
           <div>
             <h2 className="text-base font-bold text-ink">
-              Add your first expense to see trends here
+              Add your first transaction to see trends here
             </h2>
             <p className="text-xs text-ink/60 mt-1.5 max-w-xs mx-auto">
-              Once you record expenses, this dashboard displays ranked category allocations and historical spending curves.
+              Once you record transactions, this dashboard displays ranked category allocations and historical spending curves.
             </p>
           </div>
           <div className="pt-2 flex flex-col sm:flex-row justify-center gap-3">
@@ -203,7 +222,7 @@ export default function AnalyticsPage() {
               className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-forest text-white rounded-xl text-xs font-bold hover:bg-forest/90 transition-colors shadow-2xs cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span>Add Expense</span>
+              <span>Add Transaction</span>
             </button>
             <button
               onClick={seedSampleData}
@@ -243,19 +262,48 @@ export default function AnalyticsPage() {
             <span>New Entry</span>
           </button>
         </div>
+
+        {/* Period Picker */}
+        <div className="flex items-center gap-1.5 pt-3 mt-3 border-t border-line/60 overflow-x-auto">
+          <Calendar className="w-3.5 h-3.5 text-ink/40 shrink-0 mr-1" />
+          {[
+            { id: 'all', label: 'All Time' },
+            { id: 'this_month', label: 'This Month' },
+            { id: 'last_90_days', label: 'Last 90 Days' },
+            { id: 'this_year', label: 'This Year' },
+          ].map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setTimePeriod(item.id as any)}
+              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors cursor-pointer shrink-0 ${
+                timePeriod === item.id
+                  ? 'bg-forest text-white shadow-2xs font-bold'
+                  : 'bg-surface border border-line text-ink/70 hover:text-ink hover:bg-paper'
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Top Stat Overview */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="p-5 bg-surface border border-line rounded-2xl shadow-2xs">
           <p className="text-xs font-bold uppercase tracking-wider text-ink/40">
-            Total Recorded Outflows
+            Total Recorded {breakdownType === 'expense' ? 'Outflows' : 'Inflows'}
           </p>
-          <p className="text-2xl font-bold text-rust tabular mt-1">
-            {formatCurrency(totalExpenses, currency)}
+          <p
+            className={`text-2xl font-bold tabular mt-1 ${
+              breakdownType === 'expense' ? 'text-rust' : 'text-forest'
+            }`}
+          >
+            {formatCurrency(totalBreakdownAmount, currency)}
           </p>
           <p className="text-[11px] text-ink/50 mt-1">
-            Across {expenseTransactions.length} total expense items
+            Across {filteredBreakdownTransactions.length} total{' '}
+            {breakdownType === 'expense' ? 'expense' : 'income'} items
           </p>
         </div>
 
@@ -281,7 +329,7 @@ export default function AnalyticsPage() {
             {categoryRankedList.length}
           </p>
           <p className="text-[11px] text-ink/50 mt-1">
-            Configured in your local RxDB schema
+            Categories with recorded spending
           </p>
         </div>
       </div>
@@ -342,7 +390,7 @@ export default function AnalyticsPage() {
                     textAnchor="end"
                     className="text-[9px] fill-current font-mono"
                   >
-                    ${labelVal}
+                    {getCurrencySymbol(currency)}{labelVal}
                   </text>
                 </g>
               );
@@ -419,7 +467,7 @@ export default function AnalyticsPage() {
                     />
                   )}
 
-                  {/* Transparent hover capture rect */}
+                  {/* Transparent hover/touch capture rect */}
                   <rect
                     x={x - 30}
                     y={svgMetrics.padding.top}
@@ -429,6 +477,8 @@ export default function AnalyticsPage() {
                     className="cursor-pointer"
                     onMouseEnter={() => setActiveTooltipIndex(i)}
                     onMouseLeave={() => setActiveTooltipIndex(null)}
+                    onTouchStart={() => setActiveTooltipIndex(i)}
+                    onClick={() => setActiveTooltipIndex(activeTooltipIndex === i ? null : i)}
                   />
                 </g>
               );
@@ -456,20 +506,52 @@ export default function AnalyticsPage() {
 
       {/* Category Breakdown (Simple horizontal bar list ranked by spend, NOT a pie chart) */}
       <section className="bg-surface border border-line rounded-2xl p-6 shadow-2xs space-y-6">
-        <div>
-          <h2 className="text-base font-bold text-ink tracking-tight">
-            Category Breakdown (Ranked by Outflow)
-          </h2>
-          <p className="text-xs text-ink/50">
-            Linear list ranked by total spend with exact tabular valuations
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h2 className="text-base font-bold text-ink tracking-tight">
+              Category Breakdown ({breakdownType === 'expense' ? 'Outflows' : 'Inflows'})
+            </h2>
+            <p className="text-xs text-ink/50">
+              Ranked list by volume with exact valuations. Click any row to view ledger entries.
+            </p>
+          </div>
+
+          {/* Breakdown Type Toggle */}
+          <div className="flex border border-line rounded-lg p-0.5 bg-paper shrink-0 self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={() => setBreakdownType('expense')}
+              className={`px-3 py-1 text-xs font-bold rounded-md transition-colors cursor-pointer ${
+                breakdownType === 'expense'
+                  ? 'bg-surface text-rust shadow-2xs'
+                  : 'text-ink/60 hover:text-ink'
+              }`}
+            >
+              Expenses
+            </button>
+            <button
+              type="button"
+              onClick={() => setBreakdownType('income')}
+              className={`px-3 py-1 text-xs font-bold rounded-md transition-colors cursor-pointer ${
+                breakdownType === 'income'
+                  ? 'bg-surface text-forest shadow-2xs'
+                  : 'text-ink/60 hover:text-ink'
+              }`}
+            >
+              Income
+            </button>
+          </div>
         </div>
 
         <div className="space-y-4">
           {categoryRankedList.map(({ category, amount, percentage }) => {
             const Icon = getCategoryIcon(category.icon);
             return (
-              <div key={category.id} className="space-y-1.5">
+              <Link
+                key={category.id}
+                href="/transactions"
+                className="block space-y-1.5 group p-2 -mx-2 rounded-xl hover:bg-paper/60 transition-colors"
+              >
                 <div className="flex items-center justify-between text-xs">
                   <div className="flex items-center gap-2.5 min-w-0">
                     <div
@@ -481,11 +563,17 @@ export default function AnalyticsPage() {
                     >
                       <Icon className="w-3.5 h-3.5" />
                     </div>
-                    <span className="font-bold text-ink truncate">{category.name}</span>
+                    <span className="font-bold text-ink group-hover:text-forest transition-colors truncate">
+                      {category.name}
+                    </span>
                   </div>
 
                   <div className="flex items-center gap-3 tabular shrink-0 pl-2">
-                    <span className="font-bold text-rust">
+                    <span
+                      className={`font-bold ${
+                        breakdownType === 'expense' ? 'text-rust' : 'text-forest'
+                      }`}
+                    >
                       {formatCurrency(amount, currency)}
                     </span>
                     <span className="text-xs text-ink/50 font-medium w-12 text-right">
@@ -500,11 +588,12 @@ export default function AnalyticsPage() {
                     className="h-full rounded-full transition-all duration-300"
                     style={{
                       width: `${Math.max(percentage, 1)}%`,
-                      backgroundColor: category.color || '#B4472C',
+                      backgroundColor:
+                        category.color || (breakdownType === 'expense' ? '#B4472C' : '#2F5D50'),
                     }}
                   />
                 </div>
-              </div>
+              </Link>
             );
           })}
         </div>

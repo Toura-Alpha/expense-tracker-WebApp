@@ -78,9 +78,9 @@ export function Sidebar({ userEmail }: SidebarProps) {
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all ${
                       isActive
-                        ? 'bg-paper text-forest font-semibold'
+                        ? 'bg-forest/10 text-forest font-bold border-l-4 border-forest shadow-2xs'
                         : 'text-ink/60 hover:text-ink hover:bg-paper/50 font-medium'
                     }`}
                   >

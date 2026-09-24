@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -14,6 +14,8 @@ import {
   Calendar,
   X,
   ChevronDown,
+  Download,
+  ArrowUpDown,
 } from 'lucide-react';
 import { useData } from '@/lib/db/useRxData';
 import { formatCurrency, formatDayLabel, getCategoryIcon } from '@/lib/formatters';
@@ -39,14 +41,69 @@ export default function TransactionsPage() {
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
   const [dateRange, setDateRange] = useState<'all' | 'this_month' | 'last_30_days' | 'this_year'>('all');
   const [typeFilter, setTypeFilter] = useState<'all' | 'expense' | 'income'>('all');
+  const [sortBy, setSortBy] = useState<'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc'>('date_desc');
   const [showCategoryFilter, setShowCategoryFilter] = useState(false);
+
+  // Undo delete state
+  const [pendingDeleteTx, setPendingDeleteTx] = useState<TransactionDocType | null>(null);
+  const deleteTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleInitiateDelete = (tx: TransactionDocType) => {
+    if (pendingDeleteTx) {
+      deleteTransaction(pendingDeleteTx.id);
+      if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current);
+    }
+
+    setPendingDeleteTx(tx);
+    deleteTimerRef.current = setTimeout(() => {
+      deleteTransaction(tx.id);
+      setPendingDeleteTx(null);
+    }, 4000);
+  };
+
+  const handleUndoDelete = () => {
+    if (deleteTimerRef.current) {
+      clearTimeout(deleteTimerRef.current);
+      deleteTimerRef.current = null;
+    }
+    setPendingDeleteTx(null);
+  };
 
   // Pagination state
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
-  // Filter transactions
+  // CSV Export handler
+  const exportCSV = () => {
+    if (filteredTransactions.length === 0) return;
+    const headers = ['Date', 'Merchant/Title', 'Category', 'Amount', 'Currency', 'Type', 'Note'];
+    const rows = filteredTransactions.map((tx) => {
+      const cat = categories.find((c) => c.id === tx.category_id);
+      return [
+        tx.date ? tx.date.split('T')[0] : '',
+        `"${(tx.merchant_name || '').replace(/"/g, '""')}"`,
+        `"${(cat?.name || 'Uncategorized').replace(/"/g, '""')}"`,
+        tx.amount,
+        tx.currency,
+        tx.amount < 0 ? 'Expense' : 'Income',
+        `"${(tx.note || '').replace(/"/g, '""')}"`,
+      ].join(',');
+    });
+    const csvContent = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `transactions_export_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Filter & Sort transactions
   const filteredTransactions = useMemo(() => {
-    return transactions.filter((tx) => {
+    const list = transactions.filter((tx) => {
+      // Exclude pending delete transaction
+      if (pendingDeleteTx && tx.id === pendingDeleteTx.id) return false;
       // 1. Search query (merchant or note)
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
@@ -87,7 +144,15 @@ export default function TransactionsPage() {
 
       return true;
     });
-  }, [transactions, searchQuery, typeFilter, selectedCategoryIds, dateRange]);
+
+    return list.sort((a, b) => {
+      if (sortBy === 'date_desc') return new Date(b.date).getTime() - new Date(a.date).getTime();
+      if (sortBy === 'date_asc') return new Date(a.date).getTime() - new Date(b.date).getTime();
+      if (sortBy === 'amount_desc') return Math.abs(b.amount) - Math.abs(a.amount);
+      if (sortBy === 'amount_asc') return Math.abs(a.amount) - Math.abs(b.amount);
+      return 0;
+    });
+  }, [transactions, searchQuery, typeFilter, selectedCategoryIds, dateRange, sortBy, pendingDeleteTx]);
 
   // Group by day for the hairline-divided list with sticky date label
   const groupedTransactions = useMemo(() => {
@@ -180,13 +245,25 @@ export default function TransactionsPage() {
             </p>
           </div>
 
-          <button
-            onClick={() => openAddModal()}
-            className="inline-flex items-center gap-1.5 px-4 py-2 bg-forest text-white rounded-xl text-xs font-bold hover:bg-forest/90 transition-colors shadow-2xs cursor-pointer focus-visible:ring-2 focus-visible:ring-forest"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Add Entry</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={exportCSV}
+              disabled={filteredTransactions.length === 0}
+              title="Export filtered transactions as CSV"
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-paper border border-line rounded-xl text-xs font-semibold text-ink/70 hover:text-ink hover:border-forest transition-colors shadow-2xs cursor-pointer disabled:opacity-40"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Export</span>
+            </button>
+            <button
+              onClick={() => openAddModal()}
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-forest text-white rounded-xl text-xs font-bold hover:bg-forest/90 transition-colors shadow-2xs cursor-pointer focus-visible:ring-2 focus-visible:ring-forest"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Entry</span>
+            </button>
+          </div>
         </div>
 
         {/* Filter Bar */}
@@ -253,21 +330,45 @@ export default function TransactionsPage() {
 
           {/* Date range & Category toggle controls */}
           <div className="flex items-center justify-between gap-2 pt-1 border-t border-line/60 text-xs">
-            <div className="flex items-center gap-2">
-              <Calendar className="w-3.5 h-3.5 text-ink/40 shrink-0" />
-              <select
-                value={dateRange}
-                onChange={(e) => setDateRange(e.target.value as any)}
-                className="bg-transparent text-xs font-semibold text-ink/70 hover:text-ink cursor-pointer focus:outline-none"
-              >
-                <option value="all">All Time</option>
-                <option value="this_month">This Month</option>
-                <option value="last_30_days">Last 30 Days</option>
-                <option value="this_year">This Year</option>
-              </select>
+            <div className="flex items-center gap-1 overflow-x-auto py-0.5">
+              <Calendar className="w-3.5 h-3.5 text-ink/40 shrink-0 mr-1" />
+              {[
+                { id: 'all', label: 'All Time' },
+                { id: 'this_month', label: 'This Month' },
+                { id: 'last_30_days', label: '30 Days' },
+                { id: 'this_year', label: 'This Year' },
+              ].map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setDateRange(item.id as any)}
+                  className={`px-2 py-0.5 text-[11px] font-semibold rounded-md transition-colors cursor-pointer shrink-0 ${
+                    dateRange === item.id
+                      ? 'bg-forest/15 text-forest font-bold'
+                      : 'text-ink/60 hover:text-ink hover:bg-paper'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
             </div>
 
             <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 shrink-0">
+                <ArrowUpDown className="w-3.5 h-3.5 text-ink/40" />
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as any)}
+                  aria-label="Sort transactions"
+                  className="bg-transparent text-xs font-semibold text-ink/70 hover:text-ink cursor-pointer focus:outline-none"
+                >
+                  <option value="date_desc">Newest First</option>
+                  <option value="date_asc">Oldest First</option>
+                  <option value="amount_desc">Highest Amount</option>
+                  <option value="amount_asc">Lowest Amount</option>
+                </select>
+              </div>
+
               <button
                 type="button"
                 onClick={() => setShowCategoryFilter(!showCategoryFilter)}
@@ -402,7 +503,7 @@ export default function TransactionsPage() {
                         isExpense={isExpense}
                         currency={currency}
                         onEdit={() => openEditModal(tx)}
-                        onDelete={() => deleteTransaction(tx.id)}
+                        onDelete={() => handleInitiateDelete(tx)}
                       />
                     );
                   })}
@@ -422,6 +523,20 @@ export default function TransactionsPage() {
                 </button>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Floating Undo Toast Notification */}
+        {pendingDeleteTx && (
+          <div className="fixed bottom-20 sm:bottom-8 left-1/2 -translate-x-1/2 z-50 px-4 py-3 bg-surface border border-line text-ink rounded-xl shadow-xl flex items-center gap-4 text-xs font-semibold animate-fade-in">
+            <span>Transaction deleted</span>
+            <button
+              type="button"
+              onClick={handleUndoDelete}
+              className="px-3 py-1 bg-forest text-white rounded-lg text-xs font-bold hover:bg-forest/90 transition-colors cursor-pointer"
+            >
+              Undo
+            </button>
           </div>
         )}
       </div>
@@ -501,13 +616,19 @@ function TransactionRow({
             <p className="text-sm font-bold text-ink truncate group-hover:text-forest transition-colors">
               {transaction.merchant_name || category?.name || 'Untitled Transaction'}
             </p>
-            <div className="flex items-center gap-2 text-[11px] text-ink/50 truncate mt-0.5">
-              <span>{category?.name || 'Uncategorized'}</span>
-              {transaction.note && (
+            <div className="flex items-center gap-1.5 text-[11px] text-ink/50 truncate mt-0.5">
+              {transaction.merchant_name ? (
                 <>
-                  <span>&middot;</span>
-                  <span className="truncate">{transaction.note}</span>
+                  <span>{category?.name || 'Uncategorized'}</span>
+                  {transaction.note && (
+                    <>
+                      <span>&middot;</span>
+                      <span className="truncate">{transaction.note}</span>
+                    </>
+                  )}
                 </>
+              ) : (
+                <span className="truncate">{transaction.note || 'Recorded entry'}</span>
               )}
             </div>
           </div>
