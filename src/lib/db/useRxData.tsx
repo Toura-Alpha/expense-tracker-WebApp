@@ -5,6 +5,7 @@ import { getDatabase, type AppRxDatabase } from '@/lib/db';
 import { useOfflineMutation } from '@/features/transactions/hooks/useOfflineMutation';
 import type { TransactionDocType, CategoryDocType, BudgetDocType } from '@/lib/db/schemas';
 import { syncEngine } from '@/lib/db/sync';
+import { generateUUID, toValidUUID, DEFAULT_DEMO_USER_ID } from '@/lib/utils';
 
 export interface CategoryWithStats extends CategoryDocType {
   spent?: number;
@@ -108,10 +109,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
           const now = new Date().toISOString();
           for (let i = 0; i < DEFAULT_CATEGORIES.length; i++) {
             const def = DEFAULT_CATEGORIES[i];
-            const catId = `cat_default_${i + 1}`;
+            const catId = toValidUUID(`cat_default_${i + 1}`);
             await database.categories.insert({
               id: catId,
-              user_id: 'default_user',
+              user_id: DEFAULT_DEMO_USER_ID,
               name: def.name,
               icon: def.icon,
               color: def.color,
@@ -124,8 +125,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             // Seed default budget for common expense categories
             if (def.name === 'Food & Dining') {
               await database.budgets.insert({
-                id: `bgt_default_food`,
-                user_id: 'default_user',
+                id: toValidUUID('bgt_default_food'),
+                user_id: DEFAULT_DEMO_USER_ID,
                 category_id: catId,
                 monthly_limit: 450,
                 updated_at: now,
@@ -134,8 +135,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
               });
             } else if (def.name === 'Groceries') {
               await database.budgets.insert({
-                id: `bgt_default_groc`,
-                user_id: 'default_user',
+                id: toValidUUID('bgt_default_groc'),
+                user_id: DEFAULT_DEMO_USER_ID,
                 category_id: catId,
                 monthly_limit: 600,
                 updated_at: now,
@@ -144,8 +145,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
               });
             } else if (def.name === 'Transport') {
               await database.budgets.insert({
-                id: `bgt_default_trans`,
-                user_id: 'default_user',
+                id: toValidUUID('bgt_default_trans'),
+                user_id: DEFAULT_DEMO_USER_ID,
                 category_id: catId,
                 monthly_limit: 200,
                 updated_at: now,
@@ -211,11 +212,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       const database = db || (await getDatabase());
       if (!database) throw new Error('Database unavailable');
 
-      const id = `cat_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const id = generateUUID();
       const now = new Date().toISOString();
       const doc: CategoryDocType = {
         id,
-        user_id: 'current_user',
+        user_id: DEFAULT_DEMO_USER_ID,
         name: cat.name,
         icon: cat.icon || 'Tag',
         color: cat.color || '#2F5D50',
@@ -290,8 +291,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         });
       } else {
         await database.budgets.insert({
-          id: `bgt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-          user_id: 'current_user',
+          id: generateUUID(),
+          user_id: DEFAULT_DEMO_USER_ID,
           category_id: categoryId,
           monthly_limit: monthlyLimit,
           updated_at: now,

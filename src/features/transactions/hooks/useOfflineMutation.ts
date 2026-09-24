@@ -5,6 +5,7 @@ import { getDatabase } from '@/lib/db';
 import { syncEngine } from '@/lib/db/sync';
 import { syncEventBus } from '@/lib/db/events';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
+import { generateUUID, toValidUUID, DEFAULT_DEMO_USER_ID } from '@/lib/utils';
 import type { TransactionDocType } from '@/lib/db/schemas';
 
 export type SyncStatus = 'synced' | 'syncing' | 'offline' | 'error';
@@ -82,12 +83,8 @@ export function useOfflineMutation() {
 
       const now = new Date().toISOString();
       const doc: TransactionDocType = {
-        id:
-          input.id ||
-          (typeof crypto !== 'undefined' && crypto.randomUUID
-            ? crypto.randomUUID()
-            : `tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`),
-        user_id: input.user_id || 'anonymous_user',
+        id: input.id ? toValidUUID(input.id) : generateUUID(),
+        user_id: input.user_id ? toValidUUID(input.user_id) : DEFAULT_DEMO_USER_ID,
         category_id: input.category_id ?? null,
         amount: typeof input.amount === 'string' ? parseFloat(input.amount) : input.amount,
         currency: input.currency || 'USD',

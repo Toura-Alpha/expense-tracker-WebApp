@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
     }
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
+      model: 'gemini-3.5-flash',
       contents: `Parse the following natural language transaction entry into structured JSON.
 Extract:
 - description (string)

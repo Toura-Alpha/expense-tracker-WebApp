@@ -36,12 +36,21 @@ export function mapSupabaseRowToRxDoc<T extends { id: string; updated_at: string
 /**
  * Maps an RxDB document to a Supabase table row, mapping `_deleted` to `deleted_at`.
  */
+import { toValidUUID, DEFAULT_DEMO_USER_ID, isValidUUID } from '@/lib/utils';
+
 export function mapRxDocToSupabaseRow(doc: Record<string, any>): Record<string, any> {
   const { _deleted, ...row } = doc;
-  return {
+  const payload: Record<string, any> = {
     ...row,
     deleted_at: _deleted ? row.deleted_at || new Date().toISOString() : null,
   };
+
+  if (payload.id) payload.id = toValidUUID(payload.id);
+  if (payload.user_id) payload.user_id = toValidUUID(payload.user_id);
+  if (payload.category_id) payload.category_id = toValidUUID(payload.category_id);
+  if (payload.template_transaction_id) payload.template_transaction_id = toValidUUID(payload.template_transaction_id);
+
+  return payload;
 }
 
 /**
@@ -86,7 +95,14 @@ export function setupCollectionReplication<T extends { id: string; updated_at: s
           const { data, error } = await query;
 
           if (error) {
-            console.warn(`[Replication Pull Error: ${tableName}]`, error.message);
+            console.warn(`[Replication Pull Warning: ${tableName}]`, error.message);
+            // Handle JWT time skew (PGRST303) or auth/RLS pauses gracefully without crashing RxDB
+            if (error.code === 'PGRST303' || error.code === 'PGRST301' || error.code === '42501') {
+              return {
+                documents: [],
+                checkpoint: lastCheckpoint,
+              };
+            }
             throw error;
           }
 
@@ -132,7 +148,10 @@ export function setupCollectionReplication<T extends { id: string; updated_at: s
               id: lastDoc.id,
             },
           };
-        } catch (err) {
+        } catch (err: any) {
+          if (err?.code === 'PGRST303' || err?.code === 'PGRST301' || err?.code === '42501') {
+            return { documents: [], checkpoint: lastCheckpoint };
+          }
           console.warn(`[Sync Pull Handler] ${tableName} error:`, err);
           throw err;
         }
@@ -146,16 +165,24 @@ export function setupCollectionReplication<T extends { id: string; updated_at: s
         }
 
         const conflicts: any[] = [];
+        const { data: authData } = await supabase.auth.getUser();
+        const currentUserId = authData?.user?.id;
+
+        // If no authenticated user session exists, skip pushing to remote Supabase to prevent RLS violations
+        if (!currentUserId) {
+          return [];
+        }
 
         for (const changeRow of changeRows) {
           const newDoc: any = changeRow.newDocumentState;
+          const targetId = toValidUUID(newDoc.id);
 
           try {
             // Check master state for Last-Write-Wins conflict resolution
             const { data: serverDoc, error: fetchError } = await supabase
               .from(tableName)
               .select('*')
-              .eq('id', newDoc.id)
+              .eq('id', targetId)
               .maybeSingle();
 
             if (!fetchError && serverDoc) {
@@ -166,7 +193,7 @@ export function setupCollectionReplication<T extends { id: string; updated_at: s
                 // Server wins!
                 syncEventBus.emitConflict({
                   collectionName: tableName,
-                  id: newDoc.id,
+                  id: targetId,
                   message:
                     tableName === 'transactions'
                       ? 'This transaction was updated on another device.'
@@ -183,13 +210,22 @@ export function setupCollectionReplication<T extends { id: string; updated_at: s
 
             // Local wins or new item: push to Supabase
             const payload = mapRxDocToSupabaseRow(newDoc);
+            payload.user_id = currentUserId; // Always bind payload to active authenticated user's ID for RLS!
+
             const { error: upsertError } = await supabase.from(tableName).upsert(payload);
 
             if (upsertError) {
               console.warn(`[Sync Push Handler] Upsert error for ${tableName}:`, upsertError.message);
+              if (upsertError.code === '42501' || upsertError.code === 'PGRST303') {
+                continue;
+              }
               throw upsertError;
             }
-          } catch (err) {
+          } catch (err: any) {
+            if (err?.code === '42501' || err?.code === 'PGRST303') {
+              console.warn(`[Sync Push] Auth/RLS error ignored for ${tableName}:`, err.message);
+              continue;
+            }
             console.warn(`[Sync Push] Error pushing row to ${tableName}:`, err);
             throw err;
           }
